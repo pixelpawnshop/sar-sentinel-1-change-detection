@@ -1,0 +1,17 @@
+# Core dependencies
+flask==3.0.0
+earthengine-api==0.1.384
+geojson==3.1.0
+requests==2.31.0
+APScheduler==3.10.4
+SQLAlchemy==2.0.23
+
+# Utilities
+python-dotenv==1.0.0
+gunicorn==21.2.0
+
+# Development
+flask-cors==4.0.0
+
+# NumPy compatibility (earthengine-api requires numpy)
+numpy<2.0.0

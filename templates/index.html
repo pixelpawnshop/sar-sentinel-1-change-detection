@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel-1 Change Detection Monitor</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
+    <style>
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(52, 152, 219, 0);
+            }
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: 0.25rem;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 380px;
+            min-width: 380px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease, min-width 0.3s ease;
+        }
+        
+        .sidebar.collapsed {
+            width: 60px;
+            min-width: 60px;
+            overflow: hidden;
+        }
+        
+        .sidebar.collapsed .sidebar-content {
+            display: none;
+        }
+        
+        .sidebar.collapsed .sidebar-header h2 {
+            display: none;
+        }
+        
+        .sidebar.collapsed .sidebar-header {
+            padding: 1rem;
+            justify-content: center;
+            border-bottom: none;
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            background: white;
+            border-bottom: 2px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sidebar-header h2 {
+            font-size: 1.2rem;
+            margin: 0;
+            color: #2c3e50;
+        }
+        
+        #map {
+            flex: 1;
+            position: relative;
+        }
+        
+        .sidebar-content {
+            padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .collapse-sidebar-btn {
+            background: #e9ecef;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #495057;
+            transition: all 0.3s ease;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .collapse-sidebar-btn:hover {
+            background: #3498db;
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .sidebar.collapsed .collapse-sidebar-btn {
+            transform: rotate(180deg);
+            background: #3498db;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        .sidebar.collapsed .collapse-sidebar-btn:hover {
+            transform: rotate(180deg) scale(1.1);
+            background: #2980b9;
+            animation: none;
+        }
+        
+        .sidebar.collapsed .sidebar-header {
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        .aoi-list {
+            list-style: none;
+        }
+        
+        .aoi-item {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .aoi-item:hover {
+            border-color: #3498db;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .aoi-item.active {
+            border-color: #3498db;
+            background: #f0f8ff;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+        }
+        
+        .aoi-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #2c3e50;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .aoi-name::before {
+            content: '';
+            font-size: 1rem;
+        }
+        
+        .aoi-meta {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            line-height: 1.6;
+        }
+        
+        .aoi-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        
+        .aoi-actions button {
+            width: 100%;
+            text-align: center;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button.secondary {
+            background: #95a5a6;
+        }
+        
+        button.secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        button.danger {
+            background: #e74c3c;
+        }
+        
+        button.danger:hover {
+            background: #c0392b;
+        }
+        
+        button.small {
+            padding: 0.6rem 0.75rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .controls {
+            margin-bottom: 1.5rem;
+        }
+        
+        .status {
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: #6c757d;
+        }
+        
+        .empty-state p {
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                max-width: 100%;
+                min-width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #dee2e6;
+            }
+            
+            .sidebar.collapsed {
+                width: 100%;
+                height: 60px;
+            }
+            
+            .container {
+                flex-direction: column;
+            }
+        }
+        
+        #map {
+            flex: 1;
+            position: relative;
+        }
+        
+        /* Image viewer modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: #2c3e50;
+            border-radius: 8px;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            color: white;
+        }
+        
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #34495e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        
+        .close-modal {
+            background: none;
+            color: white;
+            font-size: 1.5rem;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+            overflow: auto;
+        }
+        
+        .viewer-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .image-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .image-layer img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .viewer-controls {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #34495e;
+            border-radius: 4px;
+        }
+        
+        .control-group {
+            margin-bottom: 1rem;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .control-label {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            display: block;
+            font-weight: 600;
+        }
+        
+        .toggle-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .toggle-btn {
+            padding: 0.5rem 1rem;
+            background: #7f8c8d;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        .toggle-btn.active {
+            background: #3498db;
+        }
+        
+        .toggle-btn:hover {
+            opacity: 0.8;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .slider {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #7f8c8d;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .slider-value {
+            min-width: 50px;
+            font-size: 0.9rem;
+            color: #ecf0f1;
+        }
+        
+        .info-text {
+            font-size: 0.85rem;
+            color: #95a5a6;
+            margin-top: 0.5rem;
+        }
+        
+        .instructions {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .instructions-header {
+            padding: 1rem 1.25rem;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .instructions-header:hover {
+            background: #e9ecef;
+        }
+        
+        .instructions h3 {
+            font-size: 1rem;
+            margin: 0;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .instructions-toggle {
+            font-size: 1.2rem;
+            color: #6c757d;
+            transition: transform 0.3s ease;
+        }
+        
+        .instructions.collapsed .instructions-toggle {
+            transform: rotate(-90deg);
+        }
+        
+        .instructions-content {
+            padding: 1rem 1.25rem;
+            transition: max-height 0.3s ease;
+        }
+        
+        .instructions.collapsed .instructions-content {
+            display: none;
+        }
+        
+        .instructions ol {
+            margin: 0 0 0 1.5rem;
+            padding: 0;
+            font-size: 0.9rem;
+            color: #495057;
+            line-height: 1.8;
+        }
+        
+        .instructions li {
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Sentinel-1 Change Detection Monitor</h1>
+        <p>Draw AOIs on the map to monitor for changes using SAR satellite imagery</p>
+    </header>
+    
+    <div class="container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Areas of Interest</h2>
+                <button class="collapse-sidebar-btn" onclick="toggleSidebar()" title="Collapse sidebar">◀</button>
+            </div>
+            
+            <div class="sidebar-content">
+                <div id="status" class="status info" style="display: none;"></div>
+                
+                <div class="instructions" id="instructions">
+                    <div class="instructions-header" onclick="toggleInstructions()">
+                        <h3>How to use</h3>
+                        <span class="instructions-toggle">▼</span>
+                    </div>
+                    <div class="instructions-content">
+                        <ol>
+                            <li>Click the draw polygon tool on the map</li>
+                            <li>Draw your area of interest</li>
+                            <li>Name your AOI when prompted</li>
+                            <li>Monitor will check for changes automatically</li>
+                        </ol>
+                    </div>
+                </div>
+                
+                <div id="aoi-list-container">
+                    <ul id="aoi-list" class="aoi-list"></ul>
+                    <div id="empty-state" class="empty-state">
+                        <p>No AOIs defined yet.<br>Draw a polygon on the map to get started.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="map"></div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([20, 0], 2);
+        
+        // Add base layers
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        });
+        
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        });
+        
+        osm.addTo(map);
+        
+        // Layer control
+        L.control.layers({
+            'OpenStreetMap': osm,
+            'Satellite': satellite
+        }).addTo(map);
+        
+        // Feature group for drawn items
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        
+        // Draw control
+        const drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true
+                },
+                polyline: false,
+                rectangle: true,
+                circle: false,
+                marker: false,
+                circlemarker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+        
+        // Store AOI data
+        let aois = [];
+        let selectedAoi = null;
+        
+        // Event handler for created shapes
+        map.on(L.Draw.Event.CREATED, async function(event) {
+            const layer = event.layer;
+            const geoJson = layer.toGeoJSON();
+            
+            // Prompt for name
+            const name = prompt('Enter a name for this AOI:');
+            if (!name) {
+                return;
+            }
+            
+            // Save to backend
+            try {
+                showStatus('Creating AOI...', 'info');
+                const response = await fetch('/api/aois', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        name: name,
+                        geometry: geoJson.geometry
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to create AOI');
+                }
+                
+                const aoi = await response.json();
+                showStatus('AOI created successfully!', 'success');
+                
+                // Reload AOIs
+                await loadAOIs();
+            } catch (error) {
+                console.error('Error creating AOI:', error);
+                showStatus('Error creating AOI: ' + error.message, 'error');
+            }
+        });
+        
+        // Load AOIs
+        async function loadAOIs() {
+            try {
+                const response = await fetch('/api/aois');
+                aois = await response.json();
+                
+                // Clear drawn items
+                drawnItems.clearLayers();
+                
+                // Render AOI list
+                const listElement = document.getElementById('aoi-list');
+                const emptyState = document.getElementById('empty-state');
+                
+                if (aois.length === 0) {
+                    listElement.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                
+                listElement.innerHTML = aois.map(aoi => `
+                    <li class="aoi-item" data-id="${aoi.id}">
+                        <div class="aoi-name">${aoi.name}</div>
+                        <div class="aoi-meta">
+                            ${new Date(aoi.created_date).toLocaleDateString()}<br>
+                            ${aoi.active ? 'Active' : 'Inactive'}
+                            ${aoi.last_checked ? '<br>Last checked: ' + new Date(aoi.last_checked).toLocaleDateString() : ''}
+                        </div>
+                        <div class="aoi-actions">
+                            <button class="small" onclick="testAnalysis(${aoi.id})" title="Test with 2 most recent historical images">Test</button>
+                            <button class="small" onclick="analyzeAOI(${aoi.id})" title="Run analysis">Analyze</button>
+                            <button class="small secondary" onclick="viewResults(${aoi.id})" title="View results">Results</button>
+                            <button class="small danger" onclick="deleteAOI(${aoi.id})" title="Delete AOI">Delete</button>
+                        </div>
+                    </li>
+                `).join('');
+                
+                // Draw AOIs on map
+                aois.forEach(aoi => {
+                    const layer = L.geoJSON(aoi.geometry, {
+                        style: {
+                            color: '#3498db',
+                            weight: 2,
+                            opacity: 0.8,
+                            fillOpacity: 0.1
+                        }
+                    });
+                    layer.aoiId = aoi.id;
+                    drawnItems.addLayer(layer);
+                    
+                    layer.on('click', () => {
+                        selectAOI(aoi.id);
+                    });
+                });
+                
+                // Fit bounds if AOIs exist
+                if (drawnItems.getLayers().length > 0) {
+                    map.fitBounds(drawnItems.getBounds(), {padding: [50, 50]});
+                }
+                
+            } catch (error) {
+                console.error('Error loading AOIs:', error);
+                showStatus('Error loading AOIs', 'error');
+            }
+        }
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const btn = document.querySelector('.collapse-sidebar-btn');
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            
+            // Update button title for better UX
+            btn.title = isCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
+        }
+        
+        function toggleInstructions() {
+            const instructions = document.getElementById('instructions');
+            instructions.classList.toggle('collapsed');
+        }
+        
+        function selectAOI(aoiId) {
+            document.querySelectorAll('.aoi-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.querySelector(`[data-id="${aoiId}"]`)?.classList.add('active');
+            selectedAoi = aoiId;
+        }
+        
+        // Image viewer state
+        const layerState = {
+            ref: true,
+            new: false,
+            change: false
+        };
+        
+        function openImageViewer(refUrl, newUrl, changeUrl, dates) {
+            document.getElementById('refImage').src = refUrl;
+            document.getElementById('newImage').src = newUrl;
+            document.getElementById('changeImage').src = changeUrl;
+            document.getElementById('imageModal').classList.add('active');
+            
+            // Reset state
+            layerState.ref = true;
+            layerState.new = false;
+            layerState.change = false;
+            updateLayerVisibility();
+        }
+        
+        function closeImageViewer() {
+            document.getElementById('imageModal').classList.remove('active');
+        }
+        
+        function toggleLayer(layerName) {
+            layerState[layerName] = !layerState[layerName];
+            updateLayerVisibility();
+        }
+        
+        function updateLayerVisibility() {
+            const buttons = document.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => {
+                const text = btn.textContent.trim();
+                if (text.includes('Reference')) {
+                    btn.classList.toggle('active', layerState.ref);
+                } else if (text.includes('New')) {
+                    btn.classList.toggle('active', layerState.new);
+                } else if (text.includes('Change')) {
+                    btn.classList.toggle('active', layerState.change);
+                }
+            });
+            
+            document.getElementById('refLayer').style.display = layerState.ref ? 'flex' : 'none';
+            document.getElementById('newLayer').style.display = layerState.new ? 'flex' : 'none';
+            document.getElementById('changeLayer').style.display = layerState.change ? 'flex' : 'none';
+        }
+        
+        function updateOpacity(layerName, value) {
+            const layer = document.getElementById(layerName + 'Layer');
+            const valueDisplay = document.getElementById(layerName + 'OpacityValue');
+            const opacity = value / 100;
+            layer.style.opacity = opacity;
+            valueDisplay.textContent = value + '%';
+        }
+        
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeImageViewer();
+            }
+        });
+        
+        async function testAnalysis(aoiId) {
+            try {
+                showStatus('Running test analysis (fetching 2 most recent images)...', 'info');
+                const response = await fetch(`/api/aois/${aoiId}/test-analysis`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.error) {
+                    showStatus('Test error: ' + result.error, 'error');
+                    return;
+                }
+                
+                showStatus(`Test complete! Redirecting to results page...`, 'success');
+                
+                // Redirect to results page to view
+                setTimeout(() => {
+                    window.location.href = `/results/${aoiId}`;
+                }, 1500);
+                
+            } catch (error) {
+                showStatus('Test error: ' + error.message, 'error');
+            }
+        }
+        
+        async function analyzeAOI(aoiId) {
+            if (!confirm('Trigger manual analysis for this AOI?')) {
+                return;
+            }
+            
+            try {
+                showStatus('Running analysis...', 'info');
+                const response = await fetch(`/api/aois/${aoiId}/analyze`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.changes_detected) {
+                    showStatus('Changes detected! Check results page.', 'success');
+                } else if (result.message) {
+                    showStatus(result.message, 'info');
+                } else {
+                    showStatus('No significant changes detected.', 'info');
+                }
+                
+                await loadAOIs();
+            } catch (error) {
+                showStatus('Error analyzing AOI: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteAOI(aoiId) {
+            if (!confirm('Delete this AOI and all its analyses?')) {
+                return;
+            }
+            
+            try {
+                await fetch(`/api/aois/${aoiId}`, {method: 'DELETE'});
+                showStatus('AOI deleted', 'success');
+                await loadAOIs();
+            } catch (error) {
+                showStatus('Error deleting AOI', 'error');
+            }
+        }
+        
+        function viewResults(aoiId) {
+            window.location.href = `/results/${aoiId}`;
+        }
+        
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+            
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Initial load
+        loadAOIs();
+    </script>
+</body>
+</html>
