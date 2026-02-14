@@ -227,3 +227,105 @@ class GEEManager:
         """
         aoi = ee.Geometry(geometry)
         return image.clip(aoi)
+    
+    def get_images_for_timeseries(self, geometry: Dict, start_date: str, end_date: str,
+                                   orbit_direction: Optional[str] = None,
+                                   relative_orbit: Optional[int] = None,
+                                   platform: Optional[str] = None,
+                                   max_images: int = 50) -> List[Dict]:
+        """
+        Get Sentinel-1 images for time series analysis.
+        
+        Args:
+            geometry: GeoJSON geometry dict
+            start_date: Start date string (YYYY-MM-DD)
+            end_date: End date string (YYYY-MM-DD)
+            orbit_direction: Optional orbit direction filter
+            relative_orbit: Optional relative orbit number
+            platform: Optional platform filter
+            max_images: Maximum number of images to return (default 50)
+            
+        Returns:
+            List of dicts with image metadata and thumbnail URLs
+        """
+        # Get collection with orbit filtering
+        collection = self.get_sentinel1_collection(
+            geometry,
+            start_date,
+            end_date,
+            orbit_direction=orbit_direction,
+            relative_orbit=relative_orbit,
+            platform=platform
+        )
+        
+        # Sort by date (oldest first for time series)
+        collection = collection.sort('system:time_start', True)
+        
+        # Check total count
+        total_count = collection.size().getInfo()
+        
+        if total_count == 0:
+            return []
+        
+        # Limit to max_images
+        if total_count > max_images:
+            collection = collection.limit(max_images)
+            actual_count = max_images
+        else:
+            actual_count = total_count
+        
+        # Convert to list for iteration
+        image_list = collection.toList(actual_count)
+        
+        # Process each image
+        images = []
+        aoi = ee.Geometry(geometry)
+        
+        for i in range(actual_count):
+            try:
+                image = ee.Image(image_list.get(i))
+                
+                # Get metadata
+                image_id = image.get('system:index').getInfo()
+                timestamp = image.get('system:time_start').getInfo()
+                image_date = datetime.fromtimestamp(timestamp / 1000)
+                orbit_dir = image.get('orbitProperties_pass').getInfo()
+                rel_orbit = image.get('relativeOrbitNumber_start').getInfo()
+                platform_num = image.get('platform_number').getInfo()
+                
+                # Apply speckle filter
+                filtered = self.apply_speckle_filter(image)
+                clipped = filtered.clip(aoi)
+                
+                # Generate thumbnail URL (VV polarization, grayscale)
+                vv_band = clipped.select('VV')
+                
+                # Visualization parameters for SAR (dB scale)
+                # Dimensions capped at 1200px to stay under GEE's 50MB limit
+                vis_params = {
+                    'bands': ['VV'],
+                    'min': -25,
+                    'max': 5,
+                    'dimensions': 1200,
+                    'format': 'png',
+                    'crs': 'EPSG:3857'
+                }
+                
+                thumbnail_url = vv_band.getThumbURL(vis_params)
+                
+                images.append({
+                    'image_id': image_id,
+                    'date': image_date.isoformat(),
+                    'date_formatted': image_date.strftime('%Y-%m-%d %H:%M UTC'),
+                    'thumbnail_url': thumbnail_url,
+                    'orbit_direction': orbit_dir,
+                    'relative_orbit': rel_orbit,
+                    'platform': f'Sentinel-1{platform_num}',
+                    'index': i
+                })
+                
+            except Exception as e:
+                print(f"Error processing image {i}: {e}")
+                continue
+        
+        return images

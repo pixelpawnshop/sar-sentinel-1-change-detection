@@ -229,102 +229,6 @@ def manual_analyze(aoi_id):
         session.close()
 
 
-@app.route('/api/aois/<int:aoi_id>/test-analysis', methods=['POST'])
-def test_analysis(aoi_id):
-    """
-    Test analysis using the 2 most recent historical images.
-    Saves to database so it can be viewed in results page.
-    """
-    session = get_session()
-    
-    try:
-        aoi = session.get(AOI, aoi_id)
-        if not aoi:
-            return jsonify({'error': 'AOI not found'}), 404
-        
-        # Get geometry
-        geometry = json.loads(aoi.geometry)
-        
-        # Get last 2 available images with orbit filtering
-        gee = GEEManager()
-        collection = gee.get_sentinel1_collection(
-            geometry, 
-            '2024-01-01', 
-            datetime.utcnow().strftime('%Y-%m-%d'),
-            orbit_direction=aoi.orbit_direction,
-            relative_orbit=aoi.relative_orbit_number
-            # Platform filtering optional - allow S1A/S1C mixing on same orbit
-        )
-        
-        # Sort by date and get last 2
-        image_list = collection.sort('system:time_start', False).limit(2)
-        size = image_list.size().getInfo()
-        
-        if size < 2:
-            return jsonify({'error': f'Not enough images for testing. Found {size}, need 2.'}), 400
-        
-        # Get the two most recent images
-        import ee
-        images = image_list.toList(2)
-        
-        image1 = ee.Image(images.get(0))
-        image2 = ee.Image(images.get(1))
-        
-        date1 = datetime.fromtimestamp(image1.get('system:time_start').getInfo() / 1000)
-        date2 = datetime.fromtimestamp(image2.get('system:time_start').getInfo() / 1000)
-        
-        # Ensure correct order (older first)
-        if date1 < date2:
-            ref_image = image1
-            new_image = image2
-            ref_date = date1
-            new_date = date2
-        else:
-            ref_image = image2
-            new_image = image1
-            ref_date = date2
-            new_date = date1
-        
-        # Run change detection
-        detector = ChangeDetector()
-        results = detector.log_ratio_change_detection(
-            ref_image,
-            new_image,
-            geometry,
-            aoi.threshold_db
-        )
-        
-        # Save as analysis with special note
-        analysis = Analysis(
-            aoi_id=aoi.id,
-            reference_date=ref_date,
-            new_image_date=new_date,
-            changes_detected=results['changes_detected'],
-            change_score=results['avg_change_db'],
-            change_area_sqkm=results['change_area_sqkm'],
-            change_percentage=results['change_percentage'],
-            change_map_url=results.get('change_map_url', ''),
-            ref_image_url=results.get('ref_image_url', ''),
-            new_image_url=results.get('new_image_url', ''),
-            notes=f'TEST ANALYSIS (Latest 2 historical images, {(new_date - ref_date).days} days apart)'
-        )
-        session.add(analysis)
-        session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Test analysis complete - view in results page',
-            'analysis_id': analysis.id,
-            'changes_detected': results['changes_detected']
-        })
-        
-    except Exception as e:
-        session.rollback()
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
-
-
 @app.route('/api/analyses/<int:aoi_id>')
 def get_analyses(aoi_id):
     """Get all analyses for an AOI."""
@@ -359,6 +263,59 @@ def get_analyses(aoi_id):
 def results(aoi_id):
     """Results page for an AOI."""
     return render_template('results.html', aoi_id=aoi_id)
+
+
+@app.route('/timeseries/<int:aoi_id>')
+def timeseries(aoi_id):
+    """Time series analysis page for an AOI."""
+    return render_template('timeseries.html', aoi_id=aoi_id)
+
+
+@app.route('/api/timeseries/<int:aoi_id>')
+def get_timeseries_images(aoi_id):
+    """Get Sentinel-1 images for time series analysis."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    if not start_date or not end_date:
+        return jsonify({'error': 'start_date and end_date required'}), 400
+    
+    session = get_session()
+    try:
+        aoi = session.get(AOI, aoi_id)
+        if not aoi:
+            return jsonify({'error': 'AOI not found'}), 404
+        
+        geometry = json.loads(aoi.geometry)
+        
+        # Get images using GEE
+        gee = GEEManager()
+        images = gee.get_images_for_timeseries(
+            geometry,
+            start_date,
+            end_date,
+            orbit_direction=aoi.orbit_direction,
+            relative_orbit=aoi.relative_orbit_number,
+            platform=aoi.platform_number,
+            max_images=50
+        )
+        
+        return jsonify({
+            'success': True,
+            'aoi_name': aoi.name,
+            'orbit_config': {
+                'orbit_direction': aoi.orbit_direction,
+                'relative_orbit': aoi.relative_orbit_number,
+                'platform': aoi.platform_number
+            },
+            'total_images': len(images),
+            'images': images
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
 
 
 @app.route('/api/analyses/<int:analysis_id>/feedback', methods=['POST'])

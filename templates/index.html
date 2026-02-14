@@ -726,7 +726,7 @@
                             ${aoi.last_checked ? '<br>Last checked: ' + new Date(aoi.last_checked).toLocaleDateString() : ''}
                         </div>
                         <div class="aoi-actions">
-                            <button class="small" onclick="testAnalysis(${aoi.id})" title="Test with 2 most recent historical images">Test</button>
+                            <button class="small" onclick="openTimeSeries(${aoi.id})" title="Time series analysis">Time Series</button>
                             <button class="small" onclick="analyzeAOI(${aoi.id})" title="Run analysis">Analyze</button>
                             <button class="small secondary" onclick="viewResults(${aoi.id})" title="View results">Results</button>
                             <button class="small danger" onclick="deleteAOI(${aoi.id})" title="Delete AOI">Delete</button>
@@ -847,30 +847,8 @@
             }
         });
         
-        async function testAnalysis(aoiId) {
-            try {
-                showStatus('Running test analysis (fetching 2 most recent images)...', 'info');
-                const response = await fetch(`/api/aois/${aoiId}/test-analysis`, {
-                    method: 'POST'
-                });
-                
-                const result = await response.json();
-                
-                if (result.error) {
-                    showStatus('Test error: ' + result.error, 'error');
-                    return;
-                }
-                
-                showStatus(`Test complete! Redirecting to results page...`, 'success');
-                
-                // Redirect to results page to view
-                setTimeout(() => {
-                    window.location.href = `/results/${aoiId}`;
-                }, 1500);
-                
-            } catch (error) {
-                showStatus('Test error: ' + error.message, 'error');
-            }
+        function openTimeSeries(aoiId) {
+            window.location.href = `/timeseries/${aoiId}`;
         }
         
         async function analyzeAOI(aoiId) {
