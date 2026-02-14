@@ -119,7 +119,7 @@ class Notifier:
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": f"View details at http://localhost:5000/results/{aoi_id}"
+                    "text": f"View details at {Config.BASE_URL}/results/{aoi_id}"
                 }
             ]
         })
@@ -162,7 +162,7 @@ class Notifier:
                 }
             ],
             "footer": {
-                "text": f"View details at http://localhost:5000/results/{aoi_id}"
+                "text": f"View details at {Config.BASE_URL}/results/{aoi_id}"
             },
             "timestamp": datetime.utcnow().isoformat()
         }
@@ -187,7 +187,7 @@ class Notifier:
             "change_percentage": results.get('change_percentage', 0),
             "avg_change_db": results.get('avg_change_db', 0),
             "change_map_url": results.get('change_map_url', ''),
-            "details_url": f"http://localhost:5000/results/{aoi_id}"
+            "details_url": f"{Config.BASE_URL}/results/{aoi_id}"
         }
     
     def test_connection(self) -> bool:

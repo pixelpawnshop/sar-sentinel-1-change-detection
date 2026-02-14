@@ -4,7 +4,6 @@ Test script to verify installation and configuration.
 Run this after setup to ensure everything is working correctly.
 """
 import sys
-from datetime import datetime
 
 
 def test_imports():
@@ -14,7 +13,6 @@ def test_imports():
     required = [
         'flask',
         'ee',  # earthengine-api
-        'geojson',
         'requests',
         'apscheduler',
         'sqlalchemy',

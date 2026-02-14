@@ -1,5 +1,4 @@
 """Quick verification of orbit metadata migration."""
-from models import AOI
 from config import Config
 from sqlalchemy import create_engine, inspect
 

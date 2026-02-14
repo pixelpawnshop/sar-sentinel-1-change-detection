@@ -3,8 +3,7 @@ Google Earth Engine interface for Sentinel-1 data access and processing.
 """
 import ee
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-import json
+from typing import Dict, List, Optional
 from config import Config
 
 
@@ -14,7 +13,7 @@ class GEEManager:
     def __init__(self):
         """Initialize GEE connection."""
         try:
-            ee.Initialize(project='sar-flood-detection')
+            ee.Initialize(project=Config.GEE_PROJECT_ID)
         except Exception as e:
             print(f"GEE initialization failed: {e}")
             print("Run 'earthengine authenticate' to set up credentials.")

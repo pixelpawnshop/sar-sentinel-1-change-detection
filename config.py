@@ -10,6 +10,14 @@ class Config:
     # Flask
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
     DEBUG = os.getenv('FLASK_ENV') == 'development'
+    FLASK_HOST = os.getenv('FLASK_HOST', '127.0.0.1')
+    FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
+    
+    # Base URL for links in notifications
+    BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
+    
+    # Google Earth Engine
+    GEE_PROJECT_ID = os.getenv('GEE_PROJECT_ID', 'sar-flood-detection')
     
     # Database
     DATABASE_PATH = os.getenv('DATABASE_PATH', 'satellite_monitor.db')
@@ -35,6 +43,8 @@ class Config:
     @staticmethod
     def validate():
         """Validate required configuration."""
+        if not Config.GEE_PROJECT_ID:
+            raise ValueError("GEE_PROJECT_ID is required. Set it in .env file.")
         if not Config.WEBHOOK_URL:
             print("Warning: WEBHOOK_URL not configured. Notifications will be disabled.")
         return True

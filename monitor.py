@@ -6,7 +6,7 @@ When new images are available, it performs change detection and sends notificati
 """
 import time
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 import logging

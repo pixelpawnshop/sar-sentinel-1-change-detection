@@ -393,7 +393,7 @@
             <div class="player-controls" id="player-controls" style="display: none;">
                 <div class="playback-buttons">
                     <button class="control-btn" onclick="playPause()" id="play-btn" disabled>
-                        <span id="play-icon">▶</span> Play
+                        <span id="play-icon">▶</span><span id="play-text"> Play</span>
                     </button>
                     <button class="control-btn stop" onclick="stop()" id="stop-btn" disabled>
                         ⏹ Stop
@@ -583,7 +583,7 @@
         function play() {
             isPlaying = true;
             document.getElementById('play-icon').textContent = '⏸';
-            document.getElementById('play-btn').querySelector('span:last-child').textContent = ' Pause';
+            document.getElementById('play-text').textContent = ' Pause';
             
             // Calculate interval based on speed (speed = frames per second)
             const interval = 1000 / playbackSpeed;
@@ -607,7 +607,7 @@
         function pause() {
             isPlaying = false;
             document.getElementById('play-icon').textContent = '▶';
-            document.getElementById('play-btn').querySelector('span:last-child').textContent = ' Play';
+            document.getElementById('play-text').textContent = ' Play';
             
             if (playbackInterval) {
                 clearInterval(playbackInterval);

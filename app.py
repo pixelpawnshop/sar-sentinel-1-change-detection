@@ -1,7 +1,7 @@
 """
 Flask web application for Sentinel-1 change detection monitoring.
 """
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import json
 from datetime import datetime
@@ -343,4 +343,4 @@ def mark_false_positive(analysis_id):
 
 if __name__ == '__main__':
     Config.validate()
-    app.run(debug=Config.DEBUG, host='0.0.0.0', port=5000)
+    app.run(debug=Config.DEBUG, host=Config.FLASK_HOST, port=Config.FLASK_PORT)
