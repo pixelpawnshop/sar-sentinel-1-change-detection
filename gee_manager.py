@@ -123,11 +123,13 @@ class GEEManager:
         )
         
         # Get the image closest to target date
-        def time_diff(image):
-            return ee.Number(image.get('system:time_start')).subtract(
-                target_date.timestamp() * 1000).abs()
+        target_millis = int(target_date.timestamp() * 1000)
         
-        sorted_collection = collection.sort(time_diff)
+        sorted_collection = collection.map(
+            lambda img: img.set('time_diff',
+                ee.Number(img.get('system:time_start')).subtract(target_millis).abs()
+            )
+        ).sort('time_diff')
         
         size = sorted_collection.size().getInfo()
         if size == 0:
