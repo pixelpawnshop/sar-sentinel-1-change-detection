@@ -60,6 +60,8 @@ Open http://localhost:5000 and start drawing AOIs on the map.
 3. Click "Analyze Now" for manual check or run `python monitor.py` for automated monitoring
 4. View results and time series analysis
 
+https://github.com/user-attachments/assets/08568f8b-4f99-40ce-9f77-85cddcb8d3bd
+
 **Automated Monitoring:** Run `python monitor.py` in separate terminal for continuous checks.
 
 ## Key Features
@@ -68,6 +70,10 @@ Open http://localhost:5000 and start drawing AOIs on the map.
 - **Time Series**: View up to 50 historical images with playback controls
 - **Smart Scaling**: Large AOIs automatically use smaller thumbnails
 - **Notifications**: Slack/Discord webhooks when changes detected
+
+https://github.com/user-attachments/assets/b1634b67-efcd-4bc2-a9e7-49d681d744ba
+
+<img width="372" height="579" alt="Screenshot 2026-02-14 181529" src="https://github.com/user-attachments/assets/559b33b4-c7f4-4a3c-8a2d-3b2cf3309ae8" />
 
 ## Troubleshooting
 
